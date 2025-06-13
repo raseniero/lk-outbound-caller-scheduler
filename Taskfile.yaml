@@ -1,0 +1,63 @@
+version: '3'
+
+tasks:
+  default:
+    desc: Runs the default setup
+    cmds:
+      - task --list
+
+  login:
+    desc: Log in to Azure
+    cmds:
+      - az login
+
+  set-subscription:
+    desc: Set Azure subscription
+    cmds:
+      - az account set --subscription 553b3c7a-c3b2-40de-8037-ffe396f30141
+
+  create-storage-account:
+    desc: Create the required Azure Storage Account (must be lowercase, unique, no dashes)
+    cmds:
+      - |
+        az storage account create \
+          --name lkoutboundcalleragent \
+          --location westus2 \
+          --resource-group livekit-outbound-caller-agent \
+          --sku Standard_LRS
+
+  create-function-app:
+    desc: Create a new Azure Function App (Python 3.11, Linux, Consumption plan)
+    vars:
+      FUNCTION_APP_NAME: lk-outbound-caller-scheduler-$(date +%s)
+    cmds:
+      - |
+        az functionapp create \
+          --resource-group livekit-outbound-caller-agent \
+          --consumption-plan-location westus2 \
+          --runtime python \
+          --runtime-version 3.11 \
+          --functions-version 4 \
+          --name "{{.FUNCTION_APP_NAME}}" \
+          --storage-account lkoutboundcalleragent \
+          --os-type Linux
+
+  zip-deploy:
+    desc: Deploy the function code to Azure using zip deploy
+    vars:
+      FUNCTION_APP_NAME: lk-outbound-caller-scheduler-1749797869
+    cmds:
+      - zip -r functionapp.zip .
+      - |
+        az functionapp deployment source config-zip \
+          --resource-group livekit-outbound-caller-agent \
+          --name "{{.FUNCTION_APP_NAME}}" \
+          --src functionapp.zip
+
+  logs:
+    desc: Show deployment logs for the Azure Function App
+    vars:
+      FUNCTION_APP_NAME: lk-outbound-caller-scheduler-1749797869
+    cmds:
+      - az functionapp log deployment list --name "{{.FUNCTION_APP_NAME}}" --resource-group livekit-outbound-caller-agent
+      - az functionapp log deployment show --name "{{.FUNCTION_APP_NAME}}" --resource-group livekit-outbound-caller-agent
