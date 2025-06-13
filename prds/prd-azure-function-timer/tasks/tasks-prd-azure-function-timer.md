@@ -14,7 +14,7 @@
 
 ## Tasks
 
-- [x] 1.0 Prepare the Azure Function Codebase
+- [ ] 1.0 Prepare the Azure Function Codebase
   - [x] 1.1 Review and update `mytimer/__init__.py` to ensure function logic matches PRD (logs message, no external API/email)
   - [x] 1.2 Ensure `mytimer/function.json` has correct timer trigger configuration (every 30 minutes)
   - [x] 1.3 Verify `requirements.txt` includes all necessary dependencies for Azure Functions and logging

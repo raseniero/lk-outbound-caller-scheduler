@@ -41,3 +41,6 @@ local.settings.json
 # Pipenv/Poetry files (if used)
 Pipfile.lock
 poetry.lock
+
+# Environment variables
+.env

@@ -13,3 +13,13 @@ def test_timer_logs_message(caplog):
     assert any('[mytimer] Timer triggered at' in message for message in caplog.messages), (
         'Expected timer log message not found in logs.'
     )
+
+def test_timer_triggers_make_call():
+    # Arrange
+    mock_timer = MagicMock()
+    mock_timer.past_due = False
+
+    # Act and Assert
+    with patch('mytimer.__init__.make_call', new_callable=MagicMock) as mock_make_call:
+        mytimer_mod.main(mock_timer)
+        mock_make_call.assert_called_once()
