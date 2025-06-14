@@ -12,7 +12,7 @@ tests/__pycache__/
 *.pyd
 
 # VSCode and IDE configs
-
+.vscode
 .idea/
 *.swp
 
@@ -32,9 +32,6 @@ functionapp.zip
 # Azure local settings (if present)
 local.settings.json
 
-# Windsurf AI tool files
-.windsurf/
-
 # Logs
 *.log
 
@@ -44,5 +41,4 @@ poetry.lock
 
 # Environment variables
 .env
-
 .python_packages
