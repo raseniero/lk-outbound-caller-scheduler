@@ -1,18 +1,22 @@
-# Azure Function Timer: Deployment & TDD
+# LiveKit Outbound Call Scheduler
 
 ## Overview
-This project implements an Azure Functions timer-triggered Python function that logs a message every 30 minutes. The project follows strict Test-Driven Development (TDD) and is production-ready, with automated deployment workflows using Azure CLI and Taskfile.
+This project implements an Azure Functions timer-triggered Python function that initiates outbound calls using LiveKit's SIP integration. The function creates an agent dispatch and a SIP participant to place outbound calls on a schedule. The project follows strict Test-Driven Development (TDD) and is production-ready, with automated deployment workflows using Azure CLI and Taskfile.
 
 ---
 
 ## Project Structure
 - `mytimer/` : Azure Function timer code and configuration
-  - `__init__.py` : Timer function implementation (logs timestamped message)
+  - `__init__.py` : Timer function implementation with async call dispatch
+  - `make_call.py` : LiveKit call dispatch logic
   - `function.json` : Timer trigger binding (every 30 minutes)
-- `tests/` : Pytest unit tests for the timer function
-- `requirements.txt` : Python dependencies (`azure-functions`, `pytest`)
+- `tests/` : Pytest unit tests for the function
+  - `test_mytimer.py` : Unit tests for the timer and call dispatch logic
+- `requirements.txt` : Python dependencies (`azure-functions`, `pytest`, `livekit-api`, `python-dotenv`)
 - `Taskfile.yaml` : Automated deployment and management tasks
-- `tasks/prd-azure-function-timer.md` : Product requirements and implementation plan
+- `prds/` : Product requirements and implementation plans
+  - `prd-timer-livekit-call/` : Requirements for the LiveKit call scheduler
+    - `tasks/` : Task breakdown and implementation tracking
 
 ---
 
@@ -64,18 +68,113 @@ task logs
 
 ---
 
+## Taskfile.yaml Tasks
+
+The following tasks are available via the Taskfile.yaml and the `task` CLI:
+
+- `azurite:local`: Run Azurite (Azure Storage Emulator) locally via Docker for local development.
+- `venv:create`: Create a new Python virtual environment.
+- `venv:activate`: Activate the virtual environment.
+- `install-deps`: Install Python dependencies from requirements.txt.
+- `clean-venv`: Remove the virtual environment.
+- `login`: Log in to Azure CLI.
+- `set-subscription`: Set the active Azure subscription for deployments.
+- `create-storage-account`: Create the required Azure Storage Account.
+- `create-function-app`: Create a new Azure Function App (Python 3.11, Linux, Consumption plan).
+- `package`: Create a deployment package with all dependencies.
+- `zip-deploy`: Deploy the function code to Azure using zip deploy.
+- `logs`: Show deployment logs for the Azure Function App.
+- `get-function-key`: Get the function key for the mytimer function.
+- `get-master-key`: Get the master key for the function app.
+- `trigger-function`: Manually trigger the mytimer function using the admin endpoint.
+- `set-env-vars`: Set all required environment variables for the Azure Function App.
+- `list-settings`: List current environment variables for the Azure Function App.
+
+Run `task --list` to see all available tasks and their descriptions.
+
+---
+
+## Environment Variables
+
+The following environment variables must be configured in your Azure Function App settings:
+
+### LiveKit Configuration
+- `LIVEKIT_URL`: The URL of your LiveKit instance (e.g., `wss://your-instance.livekit.io`)
+- `LIVEKIT_API_KEY`: API key with permissions to create dispatches and SIP participants
+- `LIVEKIT_API_SECRET`: Corresponding API secret for the key above
+
+### Call Configuration
+- `PHONE_NUMBER`: The phone number to call (e.g., `+15551234567`)
+- `TRANSFER_TO`: The SIP URI or number to transfer to after call is answered
+- `ROOM_NAME`: The LiveKit room name to use for the call
+- `AGENT_NAME`: Name of the agent to use for the dispatch
+- `SIP_OUTBOUND_TRUNK_ID`: The SIP trunk ID (must start with 'ST_')
+
+## Logging
+
+Log messages follow this format:
+- `[mytimer-call-dispatch] <message>` for call dispatch related logs
+- `[mytimer] <message>` for timer function logs
+
+### Querying Logs with KQL (Kusto Query Language)
+
+You can query logs in Azure Application Insights using KQL. Here are some useful queries:
+
+#### View all logs for the function app:
+```kusto
+traces
+| where timestamp > ago(24h)  // Adjust time range as needed
+| where cloud_RoleName =~ "lk-outbound-caller-scheduler-1749797869"
+| project timestamp, message = tostring(message), logLevel = tostring(customDimensions.LogLevel), functionName = tostring(customDimensions.Category)
+| order by timestamp desc
+```
+
+#### View logs for the mytimer function:
+```kusto
+traces
+| where timestamp > ago(24h)
+| where cloud_RoleName =~ "lk-outbound-caller-scheduler-1749797869"
+| where customDimensions.Category startswith "Function.mytimer"
+| project timestamp, message = tostring(message), logLevel = tostring(customDimensions.LogLevel)
+| order by timestamp desc
+```
+
+#### View errors and exceptions:
+```kusto
+exceptions
+| where timestamp > ago(24h)
+| where cloud_RoleName =~ "lk-outbound-caller-scheduler-1749797869"
+| project timestamp, problemId, outerMessage, outerType, functionName = customDimensions["Category"]
+| order by timestamp desc
+```
+
+#### View logs by log level:
+```kusto
+traces
+| where timestamp > ago(24h)
+| where cloud_RoleName =~ "lk-outbound-caller-scheduler-1749797869"
+| extend logLevel = tostring(customDimensions.LogLevel)
+| where isnotempty(logLevel)
+| summarize count() by logLevel
+```
+
 ## Runtime Log Validation
 - **Application Insights**: For runtime execution logs, use the Azure Portal:
-  1. Go to your Function App.
-  2. Open the Application Insights blade.
-  3. Query logs for messages like `[mytimer] Timer triggered at ...`.
+  1. Go to your Function App
+  2. Open the Application Insights blade
+  3. Query logs for messages like `[mytimer-call-dispatch]` or `[mytimer]`
 - **Note**: Real-time log streaming is not supported via CLI for Linux Function Apps.
 
 ---
 
 ## TDD & Testing
 - All code changes are test-driven (`pytest` in `tests/`).
-- The timer function only logs a message; no external API calls or emails.
+- Tests mock the LiveKit API to avoid making real calls during testing.
+- Run tests with: `pytest -v`
+
+## Error Handling
+- Missing or invalid environment variables will cause the function to log an error and exit.
+- LiveKit API errors are caught, logged, and re-raised for visibility in Application Insights.
 
 ---
 
