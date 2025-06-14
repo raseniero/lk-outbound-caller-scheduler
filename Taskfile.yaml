@@ -196,15 +196,15 @@ tasks:
       FUNCTION_APP_NAME: lk-outbound-caller-scheduler-1749797869
       RESOURCE_GROUP: livekit-outbound-caller-agent
       # LiveKit Configuration
-      LIVEKIT_URL: "wss://myapp-avkm45va.livekit.cloud"
-      LIVEKIT_API_KEY: "APINeNYFa3EPV8Y"
-      LIVEKIT_API_SECRET: "EvefOpCmtVLfaJmJUCkQJ7vZBXbbaVSeRcz4e3OjTyoC"
+      LIVEKIT_URL: ""
+      LIVEKIT_API_KEY: ""
+      LIVEKIT_API_SECRET: ""
       # Call Configuration
-      PHONE_NUMBER: "+12135097822"
-      TRANSFER_TO: "+18084441837"
-      ROOM_NAME: "playground-J8cl-7iU"
-      AGENT_NAME: "outbound-caller"
-      SIP_OUTBOUND_TRUNK_ID: "ST_UsdXMNmBr3AL"
+      PHONE_NUMBER: ""
+      TRANSFER_TO: ""
+      ROOM_NAME: ""
+      AGENT_NAME: ""
+      SIP_OUTBOUND_TRUNK_ID: ""
     cmds:
       - |
         if [ -z "{{.LIVEKIT_URL}}" ] || [ -z "{{.LIVEKIT_API_KEY}}" ] || [ -z "{{.LIVEKIT_API_SECRET}}" ] || 
