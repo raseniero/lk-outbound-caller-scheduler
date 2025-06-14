@@ -3,7 +3,7 @@ version: '3'
 # Environment variables
 vars:
   VENV_DIR: .venv
-  PYTHON: python3
+  PYTHON: python
 
 # Helper scripts
 scripts:
@@ -89,7 +89,8 @@ tasks:
       - |
         echo "Creating deployment package..."
         rm -rf functionapp.zip .python_packages
-        pip install --target .python_packages -r requirements.txt
+        .venv/bin/python -m pip install --upgrade pip
+        .venv/bin/pip install --target .python_packages -r requirements.txt
         zip -r functionapp.zip . -x "*.git*" "*.vscode*" ".venv/*" "tests/*" "*.pytest_cache/*" "*.pyc" "*.pyo" "*.pyd" "__pycache__" "*.so"
         echo "Package created: functionapp.zip"
 

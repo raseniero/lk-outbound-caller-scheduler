@@ -116,6 +116,48 @@ Log messages follow this format:
 - `[mytimer-call-dispatch] <message>` for call dispatch related logs
 - `[mytimer] <message>` for timer function logs
 
+### Querying Logs with KQL (Kusto Query Language)
+
+You can query logs in Azure Application Insights using KQL. Here are some useful queries:
+
+#### View all logs for the function app:
+```kusto
+traces
+| where timestamp > ago(24h)  // Adjust time range as needed
+| where cloud_RoleName =~ "lk-outbound-caller-scheduler-1749797869"
+| project timestamp, message = tostring(message), logLevel = tostring(customDimensions.LogLevel), functionName = tostring(customDimensions.Category)
+| order by timestamp desc
+```
+
+#### View logs for the mytimer function:
+```kusto
+traces
+| where timestamp > ago(24h)
+| where cloud_RoleName =~ "lk-outbound-caller-scheduler-1749797869"
+| where customDimensions.Category startswith "Function.mytimer"
+| project timestamp, message = tostring(message), logLevel = tostring(customDimensions.LogLevel)
+| order by timestamp desc
+```
+
+#### View errors and exceptions:
+```kusto
+exceptions
+| where timestamp > ago(24h)
+| where cloud_RoleName =~ "lk-outbound-caller-scheduler-1749797869"
+| project timestamp, problemId, outerMessage, outerType, functionName = customDimensions["Category"]
+| order by timestamp desc
+```
+
+#### View logs by log level:
+```kusto
+traces
+| where timestamp > ago(24h)
+| where cloud_RoleName =~ "lk-outbound-caller-scheduler-1749797869"
+| extend logLevel = tostring(customDimensions.LogLevel)
+| where isnotempty(logLevel)
+| summarize count() by logLevel
+```
+
 ## Runtime Log Validation
 - **Application Insights**: For runtime execution logs, use the Azure Portal:
   1. Go to your Function App

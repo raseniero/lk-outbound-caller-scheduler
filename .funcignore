@@ -1,3 +1,15 @@
-
-
 .venv
+.vscode
+.windsurf
+prds
+tasks
+tests
+.env
+.gitignore
+.funcignore
+.repo_ignore
+function_app.py.txt
+make_call.py.txt
+README.md
+Taskfile.yaml
+trigger_function.sh
