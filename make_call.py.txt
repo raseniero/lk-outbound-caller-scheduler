@@ -14,12 +14,12 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-# from dotenv import load_dotenv
+from dotenv import load_dotenv
 from livekit import api
 
 # Load environment variables for local development
 # In Azure, these should be set as Application Settings
-# load_dotenv(dotenv_path=Path(__file__).parent.parent / '.env')
+load_dotenv(dotenv_path=Path(__file__).parent.parent / '.env')
 
 # Set up logging
 logger = logging.getLogger("mytimer-call-dispatch")
@@ -39,23 +39,14 @@ REQUIRED_ENV_VARS = [
 
 def validate_environment() -> Tuple[bool, List[str]]:
     """
-    Validate that all required environment variables are set and have valid values.
+    Validate that all required environment variables are set.
     
     Returns:
         Tuple[bool, List[str]]: A tuple containing a boolean indicating success
-        and a list of error messages if any validations fail.
+        and a list of missing variable names if any are missing.
     """
-    # Check for missing required variables
     missing_vars = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
-    if missing_vars:
-        return (False, [f"Missing required environment variables: {', '.join(missing_vars)}"])
-    
-    # Validate SIP trunk ID format if present
-    trunk_id = os.getenv("SIP_OUTBOUND_TRUNK_ID")
-    if trunk_id and not trunk_id.startswith("ST_"):
-        return (False, [f"Invalid SIP_OUTBOUND_TRUNK_ID '{trunk_id}'. It must start with 'ST_'."])
-    
-    return (True, [])
+    return (len(missing_vars) == 0, missing_vars)
 
 def log_and_exit(message: str, exit_code: int = 1) -> None:
     """
@@ -143,11 +134,9 @@ async def make_call() -> None:
                 participant_identity=f"phone_user_{room_name}",
             )
         )
-        logger.debug("SIP participant object: %r", sip_participant)
-        logger.debug("SIP participant type: %s", type(sip_participant))
         logger.info(
             "Successfully created SIP participant: %s",
-            sip_participant.participant_identity
+            sip_participant.participant.identity
         )
         
     except Exception as e:

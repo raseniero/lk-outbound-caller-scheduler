@@ -12,7 +12,7 @@ tests/__pycache__/
 *.pyd
 
 # VSCode and IDE configs
-.vscode/
+
 .idea/
 *.swp
 
@@ -44,3 +44,5 @@ poetry.lock
 
 # Environment variables
 .env
+
+.python_packages

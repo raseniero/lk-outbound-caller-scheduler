@@ -1,10 +1,51 @@
 version: '3'
 
+# Environment variables
+vars:
+  VENV_DIR: .venv
+  PYTHON: python3
+
+# Helper scripts
+scripts:
+  activate: |
+    {{if eq .OS "windows"}}
+      .\\{{.VENV_DIR}}\\Scripts\\activate.ps1
+    {{else}}
+      source {{.VENV_DIR}}/bin/activate
+    {{end}}
+
 tasks:
   default:
     desc: Runs the default setup
     cmds:
       - task --list
+
+  azurite:local:
+    desc: Run Azurite (Azure Storage Emulator) locally via Docker
+    cmds:
+      - docker run -p 10000:10000 -p 10001:10001 -p 10002:10002 mcr.microsoft.com/azure-storage/azurite
+
+  venv:create:
+    desc: Create a new Python virtual environment
+    cmds:
+      - '{{.PYTHON}} -m venv {{.VENV_DIR}}'
+      - task: install-deps
+
+  venv:activate:
+    desc: Activate the virtual environment
+    cmds:
+      - task: script -- {{.ACTIVATE}}
+
+  install-deps:
+    desc: Install Python dependencies
+    cmds:
+      - '{{.PYTHON}} -m pip install --upgrade pip'
+      - '{{.PYTHON}} -m pip install -r requirements.txt'
+
+  clean-venv:
+    desc: Remove the virtual environment
+    cmds:
+      - '{{if eq .OS "windows"}} rmdir /s /q {{.VENV_DIR}} {{else}} rm -rf {{.VENV_DIR}} {{end}}'
 
   login:
     desc: Log in to Azure
@@ -42,17 +83,29 @@ tasks:
           --storage-account lkoutboundcalleragent \
           --os-type Linux
 
+  package:
+    desc: Create a deployment package with all dependencies
+    cmds:
+      - |
+        echo "Creating deployment package..."
+        rm -rf functionapp.zip .python_packages
+        pip install --target .python_packages -r requirements.txt
+        zip -r functionapp.zip . -x "*.git*" "*.vscode*" ".venv/*" "tests/*" "*.pytest_cache/*" "*.pyc" "*.pyo" "*.pyd" "__pycache__" "*.so"
+        echo "Package created: functionapp.zip"
+
   zip-deploy:
     desc: Deploy the function code to Azure using zip deploy
+    deps: [package]
     vars:
       FUNCTION_APP_NAME: lk-outbound-caller-scheduler-1749797869
     cmds:
-      - zip -r functionapp.zip .
       - |
+        echo "Deploying to Azure Function App..."
         az functionapp deployment source config-zip \
           --resource-group livekit-outbound-caller-agent \
           --name "{{.FUNCTION_APP_NAME}}" \
           --src functionapp.zip
+        echo "Deployment complete!"
 
   logs:
     desc: Show deployment logs for the Azure Function App
@@ -61,3 +114,131 @@ tasks:
     cmds:
       - az functionapp log deployment list --name "{{.FUNCTION_APP_NAME}}" --resource-group livekit-outbound-caller-agent
       - az functionapp log deployment show --name "{{.FUNCTION_APP_NAME}}" --resource-group livekit-outbound-caller-agent
+
+  get-function-key:
+    desc: Get the function key for the mytimer function
+    vars:
+      FUNCTION_APP_NAME: lk-outbound-caller-scheduler-1749797869
+      FUNCTION_NAME: mytimer
+    cmds:
+      - |
+        echo "Function key for {{.FUNCTION_NAME}}:"
+        az functionapp function keys list \
+          --name "{{.FUNCTION_APP_NAME}}" \
+          --resource-group livekit-outbound-caller-agent \
+          --function-name "{{.FUNCTION_NAME}}" \
+          --query "default" -o tsv
+
+  get-function-key:
+    desc: Get the function key for the mytimer function
+    vars:
+      FUNCTION_APP_NAME: lk-outbound-caller-scheduler-1749797869
+      FUNCTION_NAME: mytimer
+    cmds:
+      - |
+        echo "Function key for {{.FUNCTION_NAME}}:"
+        az functionapp function keys list \
+          --name "{{.FUNCTION_APP_NAME}}" \
+          --resource-group livekit-outbound-caller-agent \
+          --function-name "{{.FUNCTION_NAME}}" \
+          --query "default" -o tsv
+
+  get-master-key:
+    desc: Get the master key for the function app
+    vars:
+      FUNCTION_APP_NAME: lk-outbound-caller-scheduler-1749797869
+    cmds:
+      - |
+        echo "Master key for {{.FUNCTION_APP_NAME}}:"
+        az functionapp keys list \
+          --name "{{.FUNCTION_APP_NAME}}" \
+          --resource-group livekit-outbound-caller-agent \
+          --query "masterKey" -o tsv
+
+  trigger-function:
+    desc: Manually trigger the mytimer function using the admin endpoint
+    vars:
+      FUNCTION_APP_NAME: lk-outbound-caller-scheduler-1749797869
+      FUNCTION_NAME: mytimer
+    cmds:
+      - |
+        # Get master key
+        echo "=== Getting master key..."
+        MASTER_KEY=$(az functionapp keys list \
+          --name "{{.FUNCTION_APP_NAME}}" \
+          --resource-group livekit-outbound-caller-agent \
+          --query "masterKey" -o tsv)
+        
+        if [ -z "$MASTER_KEY" ]; then
+          echo "Error: Could not get master key"
+          exit 1
+        fi
+        
+        # Debug info
+        echo "App name: {{.FUNCTION_APP_NAME}}"
+        echo "Function name: {{.FUNCTION_NAME}}"
+        echo "Master key: ${MASTER_KEY:0:10}..."
+
+        # Trigger function with master key
+        curl -v \
+          -X POST \
+          -d "{}" \
+          -H "x-functions-key: $MASTER_KEY" \
+          -H "Content-Type: application/json" \
+          "https://{{.FUNCTION_APP_NAME}}.azurewebsites.net/admin/functions/{{.FUNCTION_NAME}}"
+        
+        echo -e "\n=== Function trigger request sent!"
+        echo "Check the logs with: task logs"
+
+  set-env-vars:
+    desc: Set all required environment variables for the Azure Function App
+    vars:
+      FUNCTION_APP_NAME: lk-outbound-caller-scheduler-1749797869
+      RESOURCE_GROUP: livekit-outbound-caller-agent
+      # LiveKit Configuration
+      LIVEKIT_URL: "wss://myapp-avkm45va.livekit.cloud"
+      LIVEKIT_API_KEY: "APINeNYFa3EPV8Y"
+      LIVEKIT_API_SECRET: "EvefOpCmtVLfaJmJUCkQJ7vZBXbbaVSeRcz4e3OjTyoC"
+      # Call Configuration
+      PHONE_NUMBER: "+12135097822"
+      TRANSFER_TO: "+18084441837"
+      ROOM_NAME: "playground-J8cl-7iU"
+      AGENT_NAME: "outbound-caller"
+      SIP_OUTBOUND_TRUNK_ID: "ST_UsdXMNmBr3AL"
+    cmds:
+      - |
+        if [ -z "{{.LIVEKIT_URL}}" ] || [ -z "{{.LIVEKIT_API_KEY}}" ] || [ -z "{{.LIVEKIT_API_SECRET}}" ] || 
+           [ -z "{{.PHONE_NUMBER}}" ] || [ -z "{{.TRANSFER_TO}}" ] || [ -z "{{.ROOM_NAME}}" ] || 
+           [ -z "{{.AGENT_NAME}}" ] || [ -z "{{.SIP_OUTBOUND_TRUNK_ID}}" ]; then
+          echo "Error: All environment variables must be set. Please update the Taskfile.yaml with your values."
+          exit 1
+        fi
+        
+        if [[ ! "{{.SIP_OUTBOUND_TRUNK_ID}}" =~ ^ST_ ]]; then
+          echo "Error: SIP_OUTBOUND_TRUNK_ID must start with 'ST_'"
+          exit 1
+        fi
+        
+        az functionapp config appsettings set \
+          --name "{{.FUNCTION_APP_NAME}}" \
+          --resource-group "{{.RESOURCE_GROUP}}" \
+          --settings \
+            "LIVEKIT_URL={{.LIVEKIT_URL}}" \
+            "LIVEKIT_API_KEY={{.LIVEKIT_API_KEY}}" \
+            "LIVEKIT_API_SECRET={{.LIVEKIT_API_SECRET}}" \
+            "PHONE_NUMBER={{.PHONE_NUMBER}}" \
+            "TRANSFER_TO={{.TRANSFER_TO}}" \
+            "ROOM_NAME={{.ROOM_NAME}}" \
+            "AGENT_NAME={{.AGENT_NAME}}" \
+            "SIP_OUTBOUND_TRUNK_ID={{.SIP_OUTBOUND_TRUNK_ID}}"
+        
+        echo "Environment variables set successfully!"
+        echo "You can verify the settings with: task list-settings"
+
+  list-settings:
+    desc: List current environment variables for the Azure Function App
+    vars:
+      FUNCTION_APP_NAME: lk-outbound-caller-scheduler-1749797869
+      RESOURCE_GROUP: livekit-outbound-caller-agent
+    cmds:
+      - az functionapp config appsettings list --name "{{.FUNCTION_APP_NAME}}" --resource-group "{{.RESOURCE_GROUP}}" --query "[].{name:name, value:value}" -o table
